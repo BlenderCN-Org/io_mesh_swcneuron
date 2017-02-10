@@ -52,6 +52,7 @@ class SwcNeuronImporter(bpy.types.Operator, ImportHelper):
         spheres = self.create_node_spheres()
         spheres.parent = root
         # TODO: Create a truncated cone at each edge
+        # TODO: Cylinders for cases where adjacent radii are the same
         return {'FINISHED'}
         
     def load_swc_file(self, filename):
