@@ -42,10 +42,10 @@ class SwcNeuronImporter(bpy.types.Operator, ImportHelper):
         bpy.ops.object.empty_add()
         root = bpy.context.object
         root.name = swc_name
-        # root.location = self.first_node['xyz']
         skeleton = self.create_skeleton()
         skeleton.parent = root
-        self.create_node_spheres()
+        spheres = self.create_node_spheres()
+        spheres.parent = root
         return {'FINISHED'}
         
     def load_swc_file(self, filename):
@@ -89,12 +89,31 @@ class SwcNeuronImporter(bpy.types.Operator, ImportHelper):
         return self.nodes
     
     def create_node_spheres(self):
+        # Put all the spheres into one parent object
+        bpy.ops.object.empty_add()
+        spheres = bpy.context.object
+        spheres.name = self._neuron_name() + ' node spheres'
+        # Create one sphere, which will be linked and scaled at each node
+        # bpy.ops.surface.primitive_nurbs_surface_sphere_add(
+        #     radius=1.0,
+        #     location=(0,0,0))
+        # sphere = bpy.context.object
         for id, v in self.nodes.items():
             r = v['radius']
             xyz = v['xyz']
+            # Reuse the prototype sphere data
             bpy.ops.surface.primitive_nurbs_surface_sphere_add(
-                    radius=r,
-                    location=xyz)            
+                radius=1,
+                location=(0,0,0))
+            placed_sphere = bpy.context.object
+            # placed_sphere = bpy.data.objects.new("Neuron Node", sphere.data)
+            placed_sphere.scale = (r,r,r)
+            placed_sphere.location = xyz
+            placed_sphere.parent = spheres
+        # Remove the prototype from the scene
+        # bpy.ops.object.select_all(action='DESELECT')
+        # bpy.context.scene.objects.unlink(sphere)
+        return spheres
     
     def create_skeleton(self):
         "Skeletal model of neuron, using only mesh vertices and edges"
