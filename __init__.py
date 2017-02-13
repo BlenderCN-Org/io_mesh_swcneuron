@@ -151,7 +151,7 @@ class SwcNeuronImporter(bpy.types.Operator, ImportHelper):
                 sinangle = -dr / d
                 cosangle = pow(1.0 - sinangle*sinangle, 0.5)
                 # print("cosangle = %s" % str(cosangle))
-                print("sinangle = %s" % str(sinangle))
+                # print("sinangle = %s" % str(sinangle))
                 # Compute locations of cone ends
                 axisdir = dxyz / d
                 # one = numpy.linalg.norm(axisdir)
