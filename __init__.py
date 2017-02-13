@@ -47,6 +47,7 @@ class SwcNeuronImporter(bpy.types.Operator, ImportHelper):
         bpy.ops.object.empty_add()
         root = bpy.context.object
         root.name = swc_name
+        root.location = (0,0,0)
         # Create a neuron skeleton mesh using only vertices and edges (ignoring vertex radii)
         skeleton = self.create_skeleton()
         skeleton.parent = root
@@ -127,52 +128,60 @@ class SwcNeuronImporter(bpy.types.Operator, ImportHelper):
             r1 = data['radius']
             r2 = parent['radius']
             r = min(r1, r2)
-            dr = abs(r1 - r2)
-            dxyz = data['xyz'] - parent['xyz']
+            dr = r2 - r1
+            dxyz = parent['xyz'] - data['xyz']
             # Rotation
             dx, dy, dz = dxyz
             phi = math.atan2(pow(dx*dx + dy*dy, 0.5), dz)
             theta = math.atan2(dy, dx)
-            xyz = [0.5*(a+b) for a,b in zip(data['xyz'], parent['xyz'])]
+            xyz = 0.5 * (data['xyz'] + parent['xyz'])
             d = numpy.linalg.norm(dxyz)
-            if dr/r <= 0.001: # cylinder
+            if abs(dr)/r <= 0.001: # cylinder
                 # center on center of mass of two spheres
                 cylinder_count += 1
                 cylinder = bpy.data.objects.new('cylinder_%s'%cylinder_count, cylinder_data)
                 cylinder.location = xyz
-                cylinder.scale = [r,r,2.0*d]
+                cylinder.scale = [r,r,0.5*d]
                 cylinder.rotation_euler = (0, phi, theta)
                 cylinder.active_material = material
                 cylinder.parent = cylinders
                 bpy.context.scene.objects.link(cylinder)
             else: # Cone
                 # TODO:
-                sinangle = dr / d
+                sinangle = -dr / d
                 cosangle = pow(1.0 - sinangle*sinangle, 0.5)
                 # print("cosangle = %s" % str(cosangle))
-                # print("sinangle = %s" % str(sinangle))
+                print("sinangle = %s" % str(sinangle))
                 # Compute locations of cone ends
                 axisdir = dxyz / d
                 # one = numpy.linalg.norm(axisdir)
                 # print("one = %d" % one)
-                center = xyz + (r2 - r1) * sinangle * axisdir
+                p1 = data['xyz'] + sinangle * r1 * axisdir
+                p2 = parent['xyz'] + sinangle * r2 * axisdir
+                center = (p1 + p2)/2.0
                 # 
                 cr1 = r1 * cosangle
                 cr2 = r2 * cosangle
+                # print('r1 = %f, r2 = %f, xyz1 = %s, xyz2 = %s' % (r1, r2, data['xyz'], parent['xyz']))
+                # print('cr1 = %f, cr2 = %f, center = %s' % (cr1, cr2, center))
+                # print('p1 = %s, p2 = %s' % (p1, p2))
                 bpy.ops.mesh.primitive_cone_add(
-                    radius1=cr2,
-                    radius2=cr1,
-                    depth=d - sinangle * dr,
+                    radius1=cr1,
+                    radius2=cr2,
+                    depth=numpy.linalg.norm(p2-p1),
                     end_fill_type='NOTHING',
-                    enter_editmode=False)
+                    enter_editmode=True)
                 cone = bpy.context.object
-                # bpy.ops.mesh.faces_shade_smooth()
+                cone.name = 'Truncated_Cone_%s' % cone_count
+                bpy.ops.mesh.faces_shade_smooth()
                 cone.location = center
                 cone.rotation_euler = (0, phi, theta)
                 cone.active_material = material
                 cone.parent = cylinders
                 cone_count += 1
+                bpy.ops.object.mode_set(mode = 'OBJECT')
         print("%s edges found; %s cylinders created; %s cones created" % (edge_count, cylinder_count, cone_count))
+        cylinders.location = (0,0,0)
         return cylinders
     
     def create_node_spheres(self):
