@@ -17,6 +17,7 @@ __version__ = ".".join([str(s) for s in bl_info['version']])
 
 
 import os
+import math
 
 import bpy
 from bpy_extras.io_utils import ImportHelper
@@ -51,6 +52,9 @@ class SwcNeuronImporter(bpy.types.Operator, ImportHelper):
         # Create a sphere at each neuron vertex
         spheres = self.create_node_spheres()
         spheres.parent = root
+        # TODO: Create a cylinder at each pair of adjacent nodes with identical radii
+        cylinders = self.create_edge_cylinders()
+        cylinders.parent = root
         # TODO: Create a truncated cone at each edge
         # TODO: Cylinders for cases where adjacent radii are the same
         return {'FINISHED'}
@@ -94,6 +98,54 @@ class SwcNeuronImporter(bpy.types.Operator, ImportHelper):
             v2 = self.index_from_id[data['parent_id']]
             self.edges.append( (v1, v2) )
         return self.nodes
+    
+    def create_edge_cylinders(self):
+        # Create top level empty container for edge cylinders
+        bpy.ops.object.empty_add()
+        cylinders = bpy.context.object
+        cylinders.name = 'Cylinders_' + self._neuron_name()
+        # Create single prototype for edge cylinders
+        material = bpy.data.materials.new('Mat_cylinders_' + self._neuron_name())
+        bpy.ops.surface.primitive_nurbs_surface_cylinder_add(
+                    view_align=False, enter_editmode=False,
+                    location=(0,0,0), rotation=(0.0, 0.0, 0.0),
+                    radius=1.0)
+        cylinder = bpy.context.scene.objects.active
+        cylinder_data = cylinder.data
+        # cylinder.active_material = material
+        # 
+        edge_count = 0
+        cylinder_count = 0
+        for id, data in self.nodes.items():
+            parent_id = data['parent_id']
+            if parent_id not in self.nodes:
+                continue # we need two nodes to make an edge...
+            parent = self.nodes[parent_id]
+            edge_count += 1
+            r1 = data['radius']
+            r2 = parent['radius']
+            r = min(r1, r2)
+            dr = abs(r1 - r2)/r
+            if dr > 0.001:
+                continue # need a cone here, not a cylinder
+            # center on center of mass of two spheres
+            xyz = [0.5*(a+b) for a,b in zip(data['xyz'], parent['xyz'])]
+            cylinder_count += 1
+            cylinder = bpy.data.objects.new('cylinder%s'%cylinder_count, cylinder_data)
+            cylinder.location = xyz
+            dxyz = [(a-b) for a,b in zip(data['xyz'], parent['xyz'])]
+            len2 = 0.5 * pow(sum([a*a for a in dxyz]), 0.5) # disance between spheres
+            cylinder.scale = [r,r,len2]
+            # TODO: Rotation
+            dx, dy, dz = dxyz
+            phi = math.atan2(pow(dx*dx + dy*dy, 0.5), dz)
+            theta = math.atan2(dy, dx)
+            cylinder.rotation_euler = (0, phi, theta)
+            # 
+            cylinder.parent = cylinders
+            bpy.context.scene.objects.link(cylinder)
+        print("%s edges found; %s cylinders found" % (edge_count, cylinder_count))
+        return cylinders
     
     def create_node_spheres(self):
         "Place one sphere at each vertex of the neuron structure"
